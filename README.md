@@ -114,3 +114,45 @@ El frontend queda disponible en `http://localhost:5173`
 ---
 
 ## Endpoints principales
+GET    /api/dashboard/summary           → Métricas generales
+GET    /api/properties                  → Listar propiedades
+POST   /api/properties                  → Crear propiedad
+GET    /api/tenants                     → Listar inquilinos
+POST   /api/tenants                     → Crear inquilino
+GET    /api/payments                    → Listar pagos
+POST   /api/payments                    → Registrar pago
+PATCH  /api/payments/{id}/mark-paid     → Marcar como pagado
+POST   /api/payments/{id}/send-reminder → Generar y enviar email con IA
+
+---
+
+## CI/CD
+
+GitHub Actions ejecuta automáticamente en cada push a `main`:
+1. Instala dependencias de Python y valida el backend
+2. Instala dependencias de Node y ejecuta `npm run build`
+
+El deploy en Vercel y Render se activa automáticamente desde GitHub.
+
+---
+
+## Agentes de IA
+
+Ver carpeta [`docs/ai-agents/`](docs/ai-agents/) para los prompts especializados utilizados durante el desarrollo:
+
+- `product-owner-agent.md` — Definición del alcance del MVP
+- `backend-reviewer-agent.md` — Revisión de estructura de API y modelos
+- `frontend-reviewer-agent.md` — Revisión de componentes y UX
+- `qa-tester-agent.md` — Casos de prueba y validación
+- `documentation-agent.md` — Mejora de README e informe técnico
+
+---
+
+## Mejoras futuras
+
+- Autenticación con login por propietario
+- Notificaciones automáticas programadas (cron)
+- Integración con WhatsApp Business API oficial
+- Generación de comprobantes PDF
+- Exportación a Excel
+- Módulo de mantenimiento de propiedades

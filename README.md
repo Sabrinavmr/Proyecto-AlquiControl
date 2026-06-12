@@ -114,6 +114,7 @@ El frontend queda disponible en `http://localhost:5173`
 ---
 
 ## Endpoints principales
+```
 GET    /api/dashboard/summary           → Métricas generales
 GET    /api/properties                  → Listar propiedades
 POST   /api/properties                  → Crear propiedad
@@ -123,7 +124,7 @@ GET    /api/payments                    → Listar pagos
 POST   /api/payments                    → Registrar pago
 PATCH  /api/payments/{id}/mark-paid     → Marcar como pagado
 POST   /api/payments/{id}/send-reminder → Generar y enviar email con IA
-
+```
 ---
 
 ## CI/CD

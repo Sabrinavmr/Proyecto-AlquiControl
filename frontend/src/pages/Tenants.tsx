@@ -1,48 +1,69 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Plus, Pencil, Trash2, Users, Phone, Mail } from 'lucide-react'
 import { tenantsApi } from '../api/tenantsApi'
 import { propertiesApi } from '../api/propertiesApi'
 import StatusBadge from '../components/StatusBadge'
 import Modal from '../components/Modal'
 import { formatDate } from '../utils/helpers'
+import { Tenant } from '../types'
+import { useTenants } from '../hooks/useTenants'
+import { useProperties } from '../hooks/useProperties'
 import toast from 'react-hot-toast'
 
-const EMPTY_FORM = {
-  full_name: '', phone: '', email: '', property_id: '',
-  move_in_date: '', status: 'Activo', notes: '',
+interface TenantForm {
+  full_name: string
+  phone: string
+  email: string
+  property_id: string
+  move_in_date: string
+  status: string
+  notes: string
+}
+
+const EMPTY_FORM: TenantForm = {
+  full_name: '', phone: '', email: '',
+  property_id: '', move_in_date: '',
+  status: 'Activo', notes: '',
+}
+
+interface FieldProps {
+  label: string
+  required?: boolean
+  children: React.ReactNode
+}
+
+function Field({ label, required, children }: FieldProps) {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1.5">
+        {label}{required && <span className="text-red-400 ml-0.5">*</span>}
+      </label>
+      {children}
+    </div>
+  )
 }
 
 export default function Tenants() {
-  const [tenants, setTenants] = useState([])
-  const [properties, setProperties] = useState([])
-  const [loading, setLoading] = useState(true)
+  const { tenants, loading, reload } = useTenants()
+  const { properties } = useProperties()
   const [filter, setFilter] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
-  const [editing, setEditing] = useState(null)
-  const [form, setForm] = useState(EMPTY_FORM)
+  const [editing, setEditing] = useState<Tenant | null>(null)
+  const [form, setForm] = useState<TenantForm>(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
 
-  const load = () => {
-    Promise.all([tenantsApi.list(), propertiesApi.list()])
-      .then(([t, p]) => { setTenants(t); setProperties(p) })
-      .catch(() => toast.error('Error cargando datos'))
-      .finally(() => setLoading(false))
-  }
-
-  useEffect(() => { load() }, [])
-
   const openCreate = () => { setEditing(null); setForm(EMPTY_FORM); setModalOpen(true) }
-  const openEdit = (t) => {
+  const openEdit = (t: Tenant) => {
     setEditing(t)
     setForm({
       full_name: t.full_name, phone: t.phone, email: t.email,
-      property_id: t.property_id || '', move_in_date: t.move_in_date,
-      status: t.status, notes: t.notes || '',
+      property_id: t.property_id ? String(t.property_id) : '',
+      move_in_date: t.move_in_date, status: t.status, notes: t.notes || '',
     })
     setModalOpen(true)
   }
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSaving(true)
     try {
@@ -55,22 +76,22 @@ export default function Tenants() {
         toast.success('Inquilino creado')
       }
       setModalOpen(false)
-      load()
+      reload()
     } catch (err) {
-      toast.error(err.message)
+      toast.error(err instanceof Error ? err.message : 'Error')
     } finally {
       setSaving(false)
     }
   }
 
-  const handleDelete = async (id) => {
+  const handleDelete = async (id: number) => {
     if (!confirm('¿Eliminar este inquilino?')) return
     try {
       await tenantsApi.delete(id)
       toast.success('Inquilino eliminado')
-      load()
+      reload()
     } catch (err) {
-      toast.error(err.message)
+      toast.error(err instanceof Error ? err.message : 'Error')
     }
   }
 
@@ -100,7 +121,9 @@ export default function Tenants() {
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-16"><div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" /></div>
+        <div className="flex justify-center py-16">
+          <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
+        </div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-16 text-gray-400">
           <Users size={40} className="mx-auto mb-3 opacity-30" />
@@ -112,7 +135,7 @@ export default function Tenants() {
           {filtered.map(t => (
             <div key={t.id} className="bg-white border border-gray-100 rounded-2xl p-5 flex items-center gap-4 hover:border-gray-200 transition-colors">
               <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center flex-shrink-0 text-purple-600 font-bold text-sm">
-                {t.full_name.split(' ').map(n => n[0]).slice(0, 2).join('')}
+                {t.full_name.split(' ').map((n: string) => n[0]).slice(0, 2).join('')}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-semibold text-gray-900">{t.full_name}</p>
@@ -186,17 +209,6 @@ export default function Tenants() {
           </div>
         </form>
       </Modal>
-    </div>
-  )
-}
-
-function Field({ label, children, required }) {
-  return (
-    <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1.5">
-        {label}{required && <span className="text-red-400 ml-0.5">*</span>}
-      </label>
-      {children}
     </div>
   )
 }

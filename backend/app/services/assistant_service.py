@@ -1,5 +1,5 @@
-import anthropic
 import resend
+from google import genai
 from datetime import datetime
 from app.database import settings
 from app.models.payment import Payment, PaymentStatus
@@ -47,17 +47,14 @@ El mensaje debe:
 Respondé SOLO con el texto del mensaje, sin asunto, sin etiquetas, sin explicaciones."""
 
 
+
 def generate_message(payment: Payment, tone: str = "amable") -> str:
-    """Llama a la API de Anthropic para generar el mensaje personalizado."""
-    client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
-
-    message = client.messages.create(
-        model="claude-opus-4-6",
-        max_tokens=500,
-        messages=[{"role": "user", "content": _build_prompt(payment, tone)}],
+    client = genai.Client(api_key=settings.GEMINI_API_KEY)
+    response = client.models.generate_content(
+        model="gemini-3-flash-preview",
+        contents=_build_prompt(payment, tone)
     )
-
-    return message.content[0].text.strip()
+    return response.text.strip()
 
 
 def send_email(payment: Payment, message: str) -> bool:

@@ -1,45 +1,63 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Plus, Pencil, Trash2, Building2 } from 'lucide-react'
 import { propertiesApi } from '../api/propertiesApi'
 import StatusBadge from '../components/StatusBadge'
 import Modal from '../components/Modal'
-import { formatCurrency, formatDate } from '../utils/helpers'
+import { formatCurrency } from '../utils/helpers'
+import { Property } from '../types'
+import { useProperties } from '../hooks/useProperties'
 import toast from 'react-hot-toast'
-
-const EMPTY_FORM = {
-  name: '', address: '', type: 'Departamento',
-  monthly_price: '', status: 'Disponible', notes: '',
-}
 
 const TYPES = ['Departamento', 'Habitación', 'Local', 'Casa', 'Otro']
 const STATUSES = ['Disponible', 'Alquilada', 'En mantenimiento']
 
+interface PropertyForm {
+  name: string
+  address: string
+  type: string
+  monthly_price: string
+  status: string
+  notes: string
+}
+
+const EMPTY_FORM: PropertyForm = {
+  name: '', address: '', type: 'Departamento',
+  monthly_price: '', status: 'Disponible', notes: '',
+}
+
+interface FieldProps {
+  label: string
+  required?: boolean
+  children: React.ReactNode
+}
+
+function Field({ label, required, children }: FieldProps) {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1.5">
+        {label}{required && <span className="text-red-400 ml-0.5">*</span>}
+      </label>
+      {children}
+    </div>
+  )
+}
+
 export default function Properties() {
-  const [properties, setProperties] = useState([])
-  const [loading, setLoading] = useState(true)
+  const { properties, loading, reload } = useProperties()
   const [filter, setFilter] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
-  const [editing, setEditing] = useState(null)
-  const [form, setForm] = useState(EMPTY_FORM)
+  const [editing, setEditing] = useState<Property | null>(null)
+  const [form, setForm] = useState<PropertyForm>(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
 
-  const load = () => {
-    propertiesApi.list()
-      .then(setProperties)
-      .catch(() => toast.error('Error cargando propiedades'))
-      .finally(() => setLoading(false))
-  }
-
-  useEffect(() => { load() }, [])
-
   const openCreate = () => { setEditing(null); setForm(EMPTY_FORM); setModalOpen(true) }
-  const openEdit = (p) => {
+  const openEdit = (p: Property) => {
     setEditing(p)
-    setForm({ name: p.name, address: p.address, type: p.type, monthly_price: p.monthly_price, status: p.status, notes: p.notes || '' })
+    setForm({ name: p.name, address: p.address, type: p.type, monthly_price: String(p.monthly_price), status: p.status, notes: p.notes || '' })
     setModalOpen(true)
   }
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSaving(true)
     try {
@@ -52,28 +70,26 @@ export default function Properties() {
         toast.success('Propiedad creada')
       }
       setModalOpen(false)
-      load()
+      reload()
     } catch (err) {
-      toast.error(err.message)
+      toast.error(err instanceof Error ? err.message : 'Error')
     } finally {
       setSaving(false)
     }
   }
 
-  const handleDelete = async (id) => {
+  const handleDelete = async (id: number) => {
     if (!confirm('¿Eliminar esta propiedad?')) return
     try {
       await propertiesApi.delete(id)
       toast.success('Propiedad eliminada')
-      load()
+      reload()
     } catch (err) {
-      toast.error(err.message)
+      toast.error(err instanceof Error ? err.message : 'Error')
     }
   }
 
-  const filtered = properties.filter(p =>
-    !filter || p.status === filter
-  )
+  const filtered = properties.filter(p => !filter || p.status === filter)
 
   return (
     <div>
@@ -87,16 +103,10 @@ export default function Properties() {
         </button>
       </div>
 
-      {/* Filtros */}
       <div className="flex gap-2 mb-6">
         {['', ...STATUSES].map(s => (
-          <button
-            key={s}
-            onClick={() => setFilter(s)}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-              filter === s ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
-          >
+          <button key={s} onClick={() => setFilter(s)}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${filter === s ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
             {s || 'Todas'}
           </button>
         ))}
@@ -179,17 +189,6 @@ export default function Properties() {
           </div>
         </form>
       </Modal>
-    </div>
-  )
-}
-
-function Field({ label, children, required }) {
-  return (
-    <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1.5">
-        {label}{required && <span className="text-red-400 ml-0.5">*</span>}
-      </label>
-      {children}
     </div>
   )
 }

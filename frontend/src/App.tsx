@@ -12,7 +12,7 @@ export default function App() {
       <Toaster position="top-right" toastOptions={{ style: { borderRadius: '12px', fontSize: '14px' } }} />
       <div className="flex min-h-screen bg-gray-50">
         <Sidebar />
-        <main className="flex-1 ml-60 p-8 max-w-5xl">
+        <main className="flex-1 ml-60 p-8 ">
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/propiedades" element={<Properties />} />

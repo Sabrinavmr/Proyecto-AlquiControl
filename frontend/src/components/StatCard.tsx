@@ -1,4 +1,15 @@
-export default function StatCard({ label, value, sub, icon: Icon, color = 'blue' }) {
+import { LucideIcon } from 'lucide-react'
+
+interface StatCardProps {
+  label: string
+  value: string | number
+  sub?: string
+  icon?: LucideIcon
+  color?: 'blue' | 'green' | 'amber' | 'red' | 'purple' | 'gray'
+}
+
+
+export default function StatCard({ label, value, sub, icon: Icon, color = 'blue' }: StatCardProps) {
   const colors = {
     blue:   'bg-blue-50 text-blue-600',
     green:  'bg-green-50 text-green-600',

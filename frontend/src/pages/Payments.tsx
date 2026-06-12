@@ -1,106 +1,139 @@
-import { useEffect, useState } from 'react'
-import { Plus, Pencil, Trash2, CreditCard, CheckCircle, Sparkles, MessageSquare, ExternalLink } from 'lucide-react'
+import { useState } from 'react'
+import { Plus, Trash2, CreditCard, CheckCircle, Sparkles, MessageSquare, ExternalLink } from 'lucide-react'
 import { paymentsApi } from '../api/paymentsApi'
 import { tenantsApi } from '../api/tenantsApi'
 import { propertiesApi } from '../api/propertiesApi'
 import StatusBadge from '../components/StatusBadge'
 import Modal from '../components/Modal'
 import { formatCurrency, formatDate, whatsappLink } from '../utils/helpers'
+import { Payment, AssistantResponse } from '../types'
+import { usePayments } from '../hooks/usePayments'
+import { useProperties } from '../hooks/useProperties'
+import { useTenants } from '../hooks/useTenants'
 import toast from 'react-hot-toast'
-
-const EMPTY_FORM = {
-  tenant_id: '', property_id: '', month: '', amount: '',
-  due_date: '', payment_method: 'Transferencia', notes: '',
-}
 
 const METHODS = ['Efectivo', 'Transferencia', 'Mercado Pago', 'Otro']
 const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
                 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 
+interface PaymentForm {
+  tenant_id: string
+  property_id: string
+  month: string
+  amount: string
+  due_date: string
+  payment_method: string
+  notes: string
+}
+
+const EMPTY_FORM: PaymentForm = {
+  tenant_id: '', property_id: '', month: '', amount: '',
+  due_date: '', payment_method: 'Transferencia', notes: '',
+}
+
+interface FieldProps {
+  label: string
+  required?: boolean
+  children: React.ReactNode
+}
+
+function Field({ label, required, children }: FieldProps) {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1.5">
+        {label}{required && <span className="text-red-400 ml-0.5">*</span>}
+      </label>
+      {children}
+    </div>
+  )
+}
+
 export default function Payments() {
-  const [payments, setPayments] = useState([])
-  const [tenants, setTenants] = useState([])
-  const [properties, setProperties] = useState([])
-  const [loading, setLoading] = useState(true)
+  const { payments, loading, reload } = usePayments()
+  const { properties } = useProperties()
+  const { tenants } = useTenants()
   const [filter, setFilter] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
-  const [paidModal, setPaidModal] = useState(null)
-  const [assistantModal, setAssistantModal] = useState(null)
-  const [form, setForm] = useState(EMPTY_FORM)
+  const [paidModal, setPaidModal] = useState<Payment | null>(null)
+  const [assistantModal, setAssistantModal] = useState<Payment | null>(null)
+  const [form, setForm] = useState<PaymentForm>(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
-  const [aiResult, setAiResult] = useState(null)
+  const [aiResult, setAiResult] = useState<AssistantResponse | null>(null)
   const [aiLoading, setAiLoading] = useState(false)
   const [aiTone, setAiTone] = useState('amable')
-
-  const load = () => {
-    Promise.all([paymentsApi.list(), tenantsApi.list(), propertiesApi.list()])
-      .then(([p, t, pr]) => { setPayments(p); setTenants(t); setProperties(pr) })
-      .catch(() => toast.error('Error cargando datos'))
-      .finally(() => setLoading(false))
-  }
-
-  useEffect(() => { load() }, [])
 
   const currentYear = new Date().getFullYear()
   const monthOptions = MONTHS.flatMap(m => [`${m} ${currentYear}`, `${m} ${currentYear + 1}`])
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSaving(true)
     try {
-      const data = { ...form, tenant_id: parseInt(form.tenant_id), property_id: parseInt(form.property_id), amount: parseFloat(form.amount) }
+      const data = {
+        ...form,
+        tenant_id: parseInt(form.tenant_id),
+        property_id: parseInt(form.property_id),
+        amount: parseFloat(form.amount),
+      }
       await paymentsApi.create(data)
       toast.success('Pago registrado')
       setModalOpen(false)
-      load()
+      reload()
     } catch (err) {
-      toast.error(err.message)
+      toast.error(err instanceof Error ? err.message : 'Error')
     } finally {
       setSaving(false)
     }
   }
 
-  const handleMarkPaid = async (e) => {
+  const handleMarkPaid = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    if (!paidModal) return
     setSaving(true)
     try {
-      const date = e.target.paid_date.value
-      await paymentsApi.markPaid(paidModal.id, { paid_date: date })
+      const formEl = e.currentTarget
+      const paid_date = (formEl.elements.namedItem('paid_date') as HTMLInputElement).value
+      await paymentsApi.markPaid(paidModal.id, { paid_date })
       toast.success('Pago marcado como recibido')
       setPaidModal(null)
-      load()
+      reload()
     } catch (err) {
-      toast.error(err.message)
+      toast.error(err instanceof Error ? err.message : 'Error')
     } finally {
       setSaving(false)
     }
   }
 
-  const handleDelete = async (id) => {
+  const handleDelete = async (id: number) => {
     if (!confirm('¿Eliminar este pago?')) return
     try {
       await paymentsApi.delete(id)
       toast.success('Pago eliminado')
-      load()
+      reload()
     } catch (err) {
-      toast.error(err.message)
+      toast.error(err instanceof Error ? err.message : 'Error')
     }
   }
 
   const handleSendReminder = async () => {
+    if (!assistantModal) return
     setAiLoading(true)
     setAiResult(null)
     try {
-      const result = await paymentsApi.sendReminder(assistantModal.id, { payment_id: assistantModal.id, tone: aiTone, send_email: true })
+      const result = await paymentsApi.sendReminder(assistantModal.id, {
+        payment_id: assistantModal.id,
+        tone: aiTone,
+        send_email: true,
+      })
       setAiResult(result)
       if (result.email_sent) {
         toast.success(`Email enviado a ${result.email_to}`)
-        load()
+        reload()
       } else {
         toast('Mensaje generado (email no configurado)', { icon: '⚠️' })
       }
     } catch (err) {
-      toast.error(err.message)
+      toast.error(err instanceof Error ? err.message : 'Error')
     } finally {
       setAiLoading(false)
     }
@@ -133,7 +166,9 @@ export default function Payments() {
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-16"><div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" /></div>
+        <div className="flex justify-center py-16">
+          <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
+        </div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-16 text-gray-400">
           <CreditCard size={40} className="mx-auto mb-3 opacity-30" />
@@ -165,16 +200,19 @@ export default function Payments() {
                 {p.status !== 'Pagado' && (
                   <>
                     <button onClick={() => { setAssistantModal(p); setAiResult(null) }}
-                      title="Asistente IA" className="p-2 rounded-lg hover:bg-purple-50 text-gray-400 hover:text-purple-600 transition-colors">
+                      title="Asistente IA"
+                      className="p-2 rounded-lg hover:bg-purple-50 text-gray-400 hover:text-purple-600 transition-colors">
                       <Sparkles size={15} />
                     </button>
                     <button onClick={() => setPaidModal(p)}
-                      title="Marcar como pagado" className="p-2 rounded-lg hover:bg-green-50 text-gray-400 hover:text-green-600 transition-colors">
+                      title="Marcar como pagado"
+                      className="p-2 rounded-lg hover:bg-green-50 text-gray-400 hover:text-green-600 transition-colors">
                       <CheckCircle size={15} />
                     </button>
                   </>
                 )}
-                <button onClick={() => handleDelete(p.id)} className="p-2 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors">
+                <button onClick={() => handleDelete(p.id)}
+                  className="p-2 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors">
                   <Trash2 size={15} />
                 </button>
               </div>
@@ -229,7 +267,7 @@ export default function Payments() {
         </form>
       </Modal>
 
-      {/* Modal marcar como pagado */}
+      {/* Modal marcar pagado */}
       <Modal isOpen={!!paidModal} onClose={() => setPaidModal(null)} title="Confirmar pago recibido" size="sm">
         {paidModal && (
           <form onSubmit={handleMarkPaid} className="space-y-4">
@@ -237,7 +275,8 @@ export default function Payments() {
               Marcando como pagado: <strong>{paidModal.tenant?.full_name}</strong> — {paidModal.month}
             </p>
             <Field label="Fecha de pago" required>
-              <input name="paid_date" className="input" type="date" defaultValue={new Date().toISOString().slice(0, 10)} required />
+              <input name="paid_date" className="input" type="date"
+                defaultValue={new Date().toISOString().slice(0, 10)} required />
             </Field>
             <div className="flex gap-3 pt-2">
               <button type="button" onClick={() => setPaidModal(null)} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-600">Cancelar</button>
@@ -250,12 +289,17 @@ export default function Payments() {
       </Modal>
 
       {/* Modal asistente IA */}
-      <Modal isOpen={!!assistantModal} onClose={() => { setAssistantModal(null); setAiResult(null) }} title="Asistente IA — Envío automático" size="md">
+      <Modal isOpen={!!assistantModal} onClose={() => { setAssistantModal(null); setAiResult(null) }} title="Asistente IA — Envío automático">
         {assistantModal && (
           <div className="space-y-4">
             <div className="bg-gray-50 rounded-xl p-4 text-sm">
-              <p className="text-gray-600"><strong>{assistantModal.tenant?.full_name}</strong> · {assistantModal.property?.name}</p>
-              <p className="text-gray-500 mt-0.5">{assistantModal.month} · {formatCurrency(assistantModal.amount)} · <StatusBadge status={assistantModal.status} /></p>
+              <p className="text-gray-600">
+                <strong>{assistantModal.tenant?.full_name}</strong> · {assistantModal.property?.name}
+              </p>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-gray-500">{assistantModal.month} · {formatCurrency(assistantModal.amount)}</span>
+                <StatusBadge status={assistantModal.status} />
+              </div>
             </div>
 
             <div>
@@ -272,13 +316,10 @@ export default function Payments() {
               </div>
             </div>
 
-            <button
-              onClick={handleSendReminder}
-              disabled={aiLoading}
-              className="w-full flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl text-sm font-medium hover:opacity-90 disabled:opacity-60 transition-all"
-            >
+            <button onClick={handleSendReminder} disabled={aiLoading}
+              className="w-full flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl text-sm font-medium hover:opacity-90 disabled:opacity-60 transition-all">
               <Sparkles size={16} />
-              {aiLoading ? 'Claude está generando el mensaje...' : 'Generar y enviar con IA'}
+              {aiLoading ? 'Generando mensaje con IA...' : 'Generar y enviar con IA'}
             </button>
 
             {aiResult && (
@@ -289,21 +330,19 @@ export default function Payments() {
                     {aiResult.email_sent ? `Email enviado a ${aiResult.email_to}` : 'Mensaje generado'}
                   </span>
                 </div>
-                <p className="text-sm text-gray-700 whitespace-pre-line bg-white rounded-lg p-3 border border-green-100">{aiResult.message}</p>
+                <p className="text-sm text-gray-700 whitespace-pre-line bg-white rounded-lg p-3 border border-green-100">
+                  {aiResult.message}
+                </p>
                 <div className="flex gap-2">
                   <button
                     onClick={() => { navigator.clipboard.writeText(aiResult.message); toast.success('Copiado') }}
-                    className="flex-1 py-2 bg-white border border-gray-200 rounded-lg text-xs text-gray-600 hover:bg-gray-50 transition-colors"
-                  >
+                    className="flex-1 py-2 bg-white border border-gray-200 rounded-lg text-xs text-gray-600 hover:bg-gray-50 transition-colors">
                     Copiar mensaje
                   </button>
                   {assistantModal.tenant?.phone && (
-                    <a
-                      href={whatsappLink(assistantModal.tenant.phone, aiResult.message)}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex items-center gap-1.5 flex-1 py-2 bg-green-600 text-white rounded-lg text-xs justify-center hover:bg-green-700 transition-colors"
-                    >
+                    <a href={whatsappLink(assistantModal.tenant.phone, aiResult.message)}
+                      target="_blank" rel="noreferrer"
+                      className="flex items-center gap-1.5 flex-1 py-2 bg-green-600 text-white rounded-lg text-xs justify-center hover:bg-green-700 transition-colors">
                       <ExternalLink size={12} /> Abrir WhatsApp
                     </a>
                   )}
@@ -313,17 +352,6 @@ export default function Payments() {
           </div>
         )}
       </Modal>
-    </div>
-  )
-}
-
-function Field({ label, children, required }) {
-  return (
-    <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1.5">
-        {label}{required && <span className="text-red-400 ml-0.5">*</span>}
-      </label>
-      {children}
     </div>
   )
 }

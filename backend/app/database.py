@@ -6,7 +6,7 @@ import os
 
 class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite:///./alquicontrol.db"
-    ANTHROPIC_API_KEY: str = ""
+    GEMINI_API_KEY: str = ""
     RESEND_API_KEY: str = ""
     RESEND_FROM_EMAIL: str = "AlquiControl <noreply@alquicontrol.app>"
     ENVIRONMENT: str = "development"

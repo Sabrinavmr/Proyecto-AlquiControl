@@ -8,6 +8,10 @@ env/
 *.db
 *.sqlite
 
+backend/venv/
+backend/alquicontrol.db
+frontend/dist/
+
 # Env files
 .env
 *.env.local
